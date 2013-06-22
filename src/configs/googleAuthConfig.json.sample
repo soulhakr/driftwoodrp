@@ -1,0 +1,7 @@
+{
+  "googleClientID": "your_google_client_ID",
+  "googleClientSecret": "your_google_client_secret",
+  "googleCallbackURL": "your_google_callback_url",
+  "googleScopes": "https://www.googleapis.com/auth/plus.me https://www.googleapis.com/auth/hangout.av https://www.googleapis.com/auth/hangout.participants"
+}
+

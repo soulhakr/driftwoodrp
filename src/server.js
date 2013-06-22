@@ -36,7 +36,6 @@ var cookie = require('cookie');
 var Session = connect.middleware.session.Session;
 var compass = require('node-compass');
 
-
 log.info("Initializing");
 
 
@@ -149,37 +148,4 @@ server.listen(config.getConfig().port, function() {
 	module.exports.app = app;
 	log.info('Server started on port ' + config.getConfig().port);
 });
-
-
-/**
-// Clear out old data
-models.Player.playerModel.remove({}, function(err) {
-  if (err) {
-    log.info ('error deleting old data.');
-  }
-});
-// Clear out old data
-models.Session.sessionModel.remove({}, function(err) {
-  if (err) {
-    log.info ('error deleting old data.');
-  }
-});
-// Clear out old data
-models.Session.sessionPlayerModel.remove({}, function(err) {
-  if (err) {
-    log.info ('error deleting old data.');
-  }
-});
-
-// Clear out old data
-models.Session.sessionLogModel.remove({}, function(err) {
-  if (err) {
-    log.info ('error deleting old data.');
-  }
-});
-
-**/
-
-
-
 

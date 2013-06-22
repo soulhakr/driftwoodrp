@@ -19,6 +19,8 @@ under the License.
 
 var config = require('./config');
 var express = require('express');
+var passport = require('passport');
+var GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
 
 var router = function(app, controllers, mid) {
 	if(config.getConfig.environment !== 'test'){
@@ -27,6 +29,37 @@ var router = function(app, controllers, mid) {
  
   app.use(mid.requests);
 	app.use(mid.responses);
+
+  app.use(passport.initialize());
+
+  var clientID = config.getConfig().specialConfigs.googleClientID;
+  var clientSecret = config.getConfig().specialConfigs.googleClientID;
+  var liveURL = config.getConfig().liveUrl;
+  var callbackURL = config.getConfig().specialConfigs.googleCallbackURL;
+  var scopes = config.getConfig().specialConfigs.googleScopes;
+
+  if(!clientID || !clientSecret || !liveURL || !callbackURL || !scopes) {
+    logger.error("Missing Google Auth configuration for Google Auth module. Missing key googleClientID, googleClientSecret or googleCallbackURL, googleScopes or master config liveURL");
+    process.exit(5);
+  }
+
+  var google = new GoogleStrategy({
+    clientID: config.getConfig().specialConfigs.googleClientID,
+    clientSecret: config.getConfig().specialConfigs.googleClientID,
+    callbackURL: liveURL + callbackURL,
+    scopes: scopes
+  }, 
+  function(accessToken, refreshToken, profile, callback) {
+    log.info(accessToken);
+    log.info(refreshToken);
+    log.info(profile);
+    log.info(callback);
+  });
+
+  passport.use(google);
+
+  app.get('/auth/google', passport.authenticate('google', { scope: scopes }));
+  app.get(config.getConfig().specialConfigs.googleCallbackURL, passport.authenticate('google', { successRedirect: '/', failureRedirect: '/' }));
 
 	app.get('/test/test', controllers.Sessions.test);
 	app.get('/', mid.requiresNoAuth, controllers.Players.loginPage);
