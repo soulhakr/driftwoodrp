@@ -58,7 +58,7 @@ var router = function(app, controllers, mid) {
 
   passport.use(google);
 
-  app.get('/auth/google', passport.authenticate('google', { scope: scopes }));
+  //app.get('/auth/google', passport.authenticate('google', { scope: scopes }));
   app.get(config.getConfig().specialConfigs.googleCallbackURL, passport.authenticate('google', { successRedirect: '/', failureRedirect: '/' }));
 
 	app.get('/test/test', controllers.Sessions.test);
@@ -81,6 +81,7 @@ var router = function(app, controllers, mid) {
 	app.post('/removeGM/:player/:gameName', mid.requiresAuth, mid.requiresOwnership, mid.attachGame, controllers.Sessions.removeGM);
 	app.post('/uploadToken/:player/:gameName', mid.requiresAuth, mid.attachGame, controllers.Sessions.uploadToken);
 	app.post('/removeToken/:player/:gameName', mid.requiresAuth, mid.attachGame, controllers.Sessions.removeToken);
+  app.get('*', mid.requiresNoAuth, controllers.Players.loginPage);
 };
 
 module.exports = router;
