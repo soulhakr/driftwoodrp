@@ -50,11 +50,12 @@ select {
 }
 .login-page .main,.register-page .main, .reset-pass-page .main {
   display: block;
-  background: #ffffff url('../images/driftwoodimage.png') no-repeat top left fixed;
+  background: #ffffff url('../images/driftwoodimage.jpg') no-repeat top left fixed;
   -webkit-background-size: cover;
   -moz-background-size: cover;
   -o-background-size: cover;
   background-size: cover;
+  overflow: auto;
 }
 //Make sure everything we want gets the correct box sizing
 .main, .editor, .panel {
