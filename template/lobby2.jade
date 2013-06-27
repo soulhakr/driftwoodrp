@@ -16,31 +16,37 @@ html(lang='en')
     // Site Web Fonts
   body
     // BEGIN: Main wrapper
-    #Main.login-page
+    #Main.lobby-page
       // BEGIN: header
       header.header
       // END: header
       // BEGIN: Main container
       section.main(role='main')
-        form.login(id='loginform', action='/login', method='post')
-          input(type='hidden', name='_csrf', value='#{session._csrf}')    
-          img(id="logo", src='/images/driftwoodlogo.png')
-          .control-group
-            label.control-label(for='username') Username
-            .controls
-              input#username.input-block-level(type='text', name='loginUsername',tabindex='1')
-          .control-group
-            label.control-label(for='password')
-              | Password
-              small.pull-right.muted
-                a(href='/resetPassword', tabindex='5') Forgot Password?
-            .controls
-              input#password.input-block-level(type='password', name='loginPassword',tabindex='2')
-          .control-group
-            .controls
-              input.btn.btn-primary(type='submit', value='Sign in',tabindex='3')
-              a(href='/createAccount',tabindex='4') Not registered?
-          a(href='/policy/tos.txt', target="_blank", tabindex='6') Terms of Service, Privacy Policy & Contact
+        form.lobby(id='createGameForm', action='/createGame/#{player.username}', method='post')         
+          .logout
+            div
+              a(href='/changePassword') Change Password   
+            div
+              a(href='/logout') Logout
+          section
+            input(type='hidden', name='_csrf', value='#{session._csrf}')    
+            img(id="logo", src='/images/driftwoodlogo.png')
+            .control-group
+              label.control-label(for='name') New Game
+              .controls
+                input#username.input-block-level(id='createGameName',type='text',placeholder='',name='name')
+            .control-group
+              .controls
+                input.btn.btn-primary(type='submit', value='Create Game')
+          section
+            .control-group
+              label.control-label(for='name') Games
+              .controls.games
+                ol.unstyled
+                  each game in games
+                    li: a(href="/game/#{game.ownerUsername}/#{game.name}") #{game.name} by #{game.ownerUsername}
+          section
+            a(href='/policy/tos.txt', target="_blank") Terms of Service, Privacy Policy & Contact
       // END: main container
       // BEGIN: footer
       footer.footer
@@ -61,12 +67,12 @@ html(lang='en')
                   }
             };
 
-            $("#loginform").on("submit", function(event) {
+            $("#createGameForm").on("submit", function(event) {
 
-              var form = $('#loginform');
+              var form = $('#createGameForm');
 
-              if(!$("input[name=loginUsername]").val() || !$("input[name=loginPassword]").val()) {
-                error("All Fields Required");
+              if(!$("input[name=name]").val()) {
+                error("Game Name is Required");
                 return false;
               }
 

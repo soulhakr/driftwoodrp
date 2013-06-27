@@ -61,7 +61,6 @@ var router = function(app, controllers, mid) {
   //app.get('/auth/google', passport.authenticate('google', { scope: scopes }));
   app.get(config.getConfig().specialConfigs.googleCallbackURL, passport.authenticate('google', { successRedirect: '/', failureRedirect: '/' }));
 
-	app.get('/test/test', controllers.Sessions.test);
 	app.get('/', mid.requiresNoAuth, controllers.Players.loginPage);
 	app.get('/login', mid.requiresNoAuth, controllers.Players.loginPage);
 	app.post('/login', mid.requiresNoAuth, controllers.Players.login);
@@ -71,6 +70,7 @@ var router = function(app, controllers, mid) {
 	app.post('/createAccount', mid.requiresNoAuth, controllers.Players.createAccount);
   app.get('/resetPassword', controllers.Players.resetPasswordPage);
   app.post('/resetPassword',  controllers.Players.resetPassword);
+	app.get('/changePassword', mid.requiresAuth, controllers.Players.changePasswordPage);	
 	app.post('/changePassword', mid.requiresAuth, controllers.Players.changePassword);	
 	app.get('/joinGame/:player', mid.requiresAuth, mid.requiresOwnership, controllers.Sessions.joinSessionPage);
 	app.post('/createGame/:player', mid.requiresAuth, mid.requiresOwnership, controllers.Sessions.createSession);

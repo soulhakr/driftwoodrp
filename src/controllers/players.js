@@ -86,6 +86,10 @@ var resetPasswordPage = function(req, res){
 	res.render('reset-password', {title: 'Driftwood Password Reset'});
 };
 
+var changePasswordPage = function(req, res){
+  res.render('password-change', {title: 'Driftwood Change Password'});
+};
+
 var createAccount = function(req, res){
 	var username = req.body.username;
 	var password = req.body.password;
@@ -93,10 +97,15 @@ var createAccount = function(req, res){
 	var emailAddr = req.body.email;
   var confirmEmail = req.body.confirmEmail;
 	var displayName = req.body.displayName;
+  var tosAgreement = req.body.tosAgreement;
 	
 	if(!username || !password || !confirmPassword || !emailAddr || !confirmEmail || !displayName) {
 		return res.badRequest("All fields required");
 	}
+
+  if(!tosAgreement) {
+    return res.badRequest("You must agree to the terms of service &amp; privacy policy");
+  }
   
   if(password !== confirmPassword) {
     return res.badRequest("Passwords must match");
@@ -209,6 +218,7 @@ module.exports.login = login;
 module.exports.logout = logout;
 module.exports.createAccount = createAccount;
 module.exports.changePassword = changePassword;
+module.exports.changePasswordPage = changePasswordPage;
 module.exports.resetPassword = resetPassword;
 module.exports.resetPasswordPage = resetPasswordPage;
 module.exports.registerPage = registerPage;
