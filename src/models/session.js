@@ -43,6 +43,11 @@ var SessionSchema = new mongoose.Schema({
 		required: true,
 		trim: true
 	},
+  ownerDisplayName : {
+    type: String,
+    required: true,
+    trim: true
+  },
   name:		{
 		type: String,
 		required: true,
@@ -69,6 +74,11 @@ var SessionPlayerSchema = new mongoose.Schema({
 		ref: 'Player'
 	},
   playerUsername: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  displayName: {
     type: String,
     required: true,
     trim: true
@@ -169,6 +179,7 @@ SessionSchema.statics.findByNameOwner = function(name, owner, callback) {
 SessionPlayerSchema.virtual('clientObject').get(function() {
   return {
     "playerUsername": this.playerUsername,
+    "displayName": this.displayName,
     "isGM": this.isGM
   }
 });

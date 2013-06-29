@@ -124,37 +124,29 @@ $(document).ready(function() {
         }
         if( data.canvas ) {
           this.settings.canvas = data.canvas;
+          canvasJSON = JSON.parse(data.canvas);
+          this.settings.editorColor = canvasJSON.background;
+          if( canvasJSON.objects.length && canvasJSON.objects[canvasJSON.objects.length -1].layer === 'grid_layer' ) {
+            var grid = canvasJSON.objects[canvasJSON.objects.length -1];
+            this.settings.grid = true;
+            this.settings.gridColor = grid.stroke;
+            this.settings.gridSize = grid.gridSize;
+            this.settings.gridUnit = grid.gridUnit;
+          } else {
+            this.settings.grid = false;
+          }
         }
         //Run the game
         this.run();
-        //Hide the loading screen, we're ready to go!
-        this.loading.hide();
       }, this ) );
-
-      this.socket.on('playerLeft', _.bind( function() {
-        console.log('player left');
-      }, this));
-
-      this.socket.on('playerJoined', _.bind( function() {
-        console.log('player joined');
-      }, this));
-
-      this.socket.on('playerManageList', _.bind( function(data) {
-        console.log(data);
-      }, this));
-
-      this.socket.on('systemMessage', _.bind( function(data) {
-        console.log(data);
-      }, this));
-
-      this.socket.on('disconnect', _.bind( function() {
-        console.log('disconnected');
-        this.loading.show('Disconnected from Server. Trying to reestablish connection');
-      }, this));
     },
 
     run: function() {
-      
+      $body.off();
+      //create settings panel
+      this.settingsPanel = new SettingsPanel();
+      //Global message
+      this.system = new SystemMessage();
       //Create chat
       this.chat = new Chat({load:this.settings.chatData});
       //Make sure we have a command list
@@ -178,14 +170,18 @@ $(document).ready(function() {
       //Set initial layer
       this.setInitialLayer();
       //Update our intial settings
-      this.updateSettings(this.settings);
+      this.updateSettingsWithoutDispatch(this.settings);
       //Load the canvas
       this.canvas.loadCanvas(this.settings.canvas);
       //Update UI
       this.setUI();
       //Move canvas to center
       this.canvas.center();
+      //Allow the canvas to save
+      this.canvas.addSaveListener();
       //this.canvas.enableFog();
+      //Hide the loading screen, we're ready to go!
+      this.loading.hide();
     },
 
     addEventListeners: function() {
@@ -245,7 +241,7 @@ $(document).ready(function() {
       //Clears a target of its value
       $body.on('click','[data-clear]', function() {
         var $target = $body.find($(this).data('clear'));
-        console.log($target);
+        //console.log($target);
         $target.val('');
       })
 
@@ -261,7 +257,6 @@ $(document).ready(function() {
         onChange: _.bind( function (hsb, hex, rgb) {
           var color = '#' + hex;
           this.$editorColor.val(color);
-          this.updateSettings({editorColor:color});
         }, this )
       });
 
@@ -327,12 +322,10 @@ $(document).ready(function() {
       // --- GRID SETTINGS ---- //
       //Turn grid on
       $body.on('click','.grid-on:not(.active)', _.bind( function() {
-        this.updateSettings({grid:true});
         this.$gridSettings.slideDown();
       }, scope ) );
       //Turn grid off
       $body.on('click','.grid-off:not(.active)', _.bind( function() {
-        this.updateSettings({grid:false});
         this.$gridSettings.slideUp();
       }, scope ) );
       //Change grid color
@@ -346,7 +339,6 @@ $(document).ready(function() {
         onChange: _.bind( function (hsb, hex, rgb) {
           var color = '#' + hex;
           this.$gridColor.val(color);
-          this.updateSettings({gridColor:color});
         }, this)
       });
 
@@ -362,14 +354,34 @@ $(document).ready(function() {
         }
         
       } );
+
+      $body.on('click','[data-action][data-player]', function() {
+        var $this = $(this),
+            action = $this.attr('data-action'),
+            username = $this.attr('data-target') ? $body.find($this.attr('data-target')).val() : $this.attr('data-player');
+
+        if( action === 'promoteGM' || action === 'demoteGM' ) {
+          scope.socket.emit('changePlayer',{type:action,playerUsername:username});
+        } else if( action === 'removePlayer' ) {
+          scope.socket.emit('removePlayer',{playerUsername:username});
+        } else if( action === 'addPlayer' ) {
+          console.log(username);
+          scope.socket.emit('addPlayer',{playerUsername:username});
+        }
+      });
       
       //Save all our settings
       $body.on('click','.save-settings', _.bind( function() {
         this.updateSettings( {
+          grid: $body.find('.grid-on.active').size() ? true: false,
           gridSize: this.$gridSize.val(),
+          gridColor: this.$gridColor.val(),
           editorColor: this.$editorColor.val(),
           gridUnit: this.$gridUnit.val()
         } );
+      }, this ) );
+      $body.on('click','.cancel-settings', _.bind( function() {
+        this.setUI();
       }, this ) );
     },
 
@@ -379,6 +391,9 @@ $(document).ready(function() {
      * the call to the proper scope.
      */
     addSocketListeners: function() {
+      if( this.socketsAssigned ) {
+        return;
+      }
       //On receiving chat, use our chat object to receive the message
       //and make sure the scope being used is the chat object itself
       this.socket.on('chat', _.bind( this.chat.receiveData, this.chat ) );
@@ -393,6 +408,67 @@ $(document).ready(function() {
         }, this ) );
         
       }, this ) );
+      this.socket.on('playerLeft', _.bind( function(username) {
+        console.log('Player left',username);
+        this.removePlayer(username);
+      }, this));
+
+      this.socket.on('playerJoined', _.bind( function(data) {
+        console.log('Player joined',data.user);
+      }, this));
+
+      this.socket.on('playerManageList', _.bind( function(data) {
+        console.log('Player List',data);
+        this.settingsPanel.updatePlayerList(data);
+      }, this ) );
+
+      this.socket.on('systemMessage', _.bind( function(data) {
+        console.log(data);
+        if( data.action ) {
+          switch(data.action) {
+            case 'addGM' :
+              if( data.type === 'updatePlayer' ) {
+                this.system.message('You have been promoted to a GM. Please <a onclick="window.location.reload();return false;">reload the game</a> to access your new GM abilities','success');
+                break;
+              }
+            case 'removeGM' :
+              //They have been demoted, prevent them from doing anything else
+              if( data.type === 'updatePlayer' ) {
+                this.destroy();
+                this.loading.show('The heavens have cast you out to live among the mortals. <a onclick="window.location.reload();return false;">Reload the game</a> to walk among the world once more.','The GM has spoken!');
+                break;
+              }
+            default:
+              var type = (['success','error'].indexOf(data.type) !== - 1) ? data.type : false;
+              console.log(type);
+              this.system.message(data.message,type,true);
+              break;
+          }
+        }
+      }, this));
+
+      this.socket.on('gameSettingsChanged', _.bind( function(data) {
+        console.log('Game settings changed',data);
+        this.updateSettingsWithoutDispatch(data);
+        this.setUI();
+      }, this ) );
+
+      this.socket.on('disconnect', _.bind( function(s) {
+        if( s === 'booted') {
+          this.loading.show("No saving throw here. You've been booted. Critical Hit!",'For shame!');
+        } else {
+          this.loading.show('Disconnected from Server. Trying to reestablish connection');
+        }
+      }, this));
+      
+
+      this.socketsAssigned = true;
+    },
+
+    destroy: function() {
+      this.socket.removeAllListeners();
+      $body.off();
+      $body.find('.editor,.panel').remove();
     },
 
     /**
@@ -404,35 +480,36 @@ $(document).ready(function() {
         this.players = {};
       }
       //Create a player
-      this.players[data.id] = new Player(data);
+      this.players[data.username] = new Player(data);
+    },
+
+    removePlayer: function(username) {
+      delete this.players[username];
     },
 
     /**
      * Updates settings and initiates the proper changes
      */
-    updateSettings: function( settings ) {
+    updateSettings: function( settings, noDispatch ) {
       //Turn grid on
       if( settings.hasOwnProperty('grid') && settings.grid ) {
         this.canvas.setGrid(this.settings.gridSize,this.settings.gridColor);
         this.toggleGridLabel('show');
+        //Change grid size
+        if( settings.hasOwnProperty('gridSize') && settings.hasOwnProperty('gridColor') ) {
+          this.canvas.setGrid(settings.gridSize,settings.gridColor);
+        }
       }
       //Turn grid off
       if( settings.hasOwnProperty('grid') && ! settings.grid ) {
         this.canvas.clearLayer('grid_layer');
         this.toggleGridLabel('hide');
       }
-      //Change grid color
-      if( this.settings.grid && settings.hasOwnProperty('gridColor') ) {
-        this.canvas.setGridColor(settings.gridColor);
-      }
-      //Change grid size
-      if( this.settings.grid && settings.hasOwnProperty('gridSize') ) {
-        this.canvas.setGrid(settings.gridSize,this.settings.gridColor);
-      }
+      
+
       //Change background color
       if( settings.hasOwnProperty('editorColor') ) {
-        this.canvas.canvas.backgroundColor = settings.editorColor;
-        this.canvas.canvas.renderAll();
+        this.canvas.setBackgroundColor(settings.editorColor);
       }
       if( settings.hasOwnProperty('enableFog') ) {
         if( settings.enableFog ) {
@@ -448,6 +525,15 @@ $(document).ready(function() {
       if( this.settings.grid && (settings.hasOwnProperty('gridSize') || settings.hasOwnProperty('gridUnit')) ) {
         this.updateGridLabel(this.settings.gridUnit)
       }
+      //Canvas has been modified
+      if( ! noDispatch ) {
+        this.socket.emit('changeGameSettings',settings);
+        this.canvas.trigger('canvas:modified');
+      }
+    },
+
+    updateSettingsWithoutDispatch: function(settings) {
+      this.updateSettings(settings,true);
     },
 
     /**
@@ -470,12 +556,21 @@ $(document).ready(function() {
      * Sets UI items with our given settings
      */
     setUI: function() {
-      this.$editorColor.val(this.settings.editorColor);
-      this.$gridColor.val(this.settings.gridColor);
-      this.$gridSize.val(this.settings.gridSize);
+      //Always set these things
       this.$freeDrawStroke.val(this.settings.freeDrawColor);
       this.$freeDrawFill.val(this.settings.freeDrawFill);
       this.$freeDrawStrokeWidth.find('option[value="'+this.settings.freeDrawWidth+'"]').prop('selected',true);
+      //These options are only available if you're a GM
+      if( driftwood.engine.player.isGM() ) {
+        this.$editorColor.val(this.settings.editorColor);
+        this.$gridColor.val(this.settings.gridColor);
+        this.$gridSize.val(this.settings.gridSize);
+        this.$gridUnit.val(this.settings.gridUnit);
+        $body.find('.grid-'+(this.settings.grid ? 'on' : 'off')).trigger('click');
+      //Make sure the form fields are disabled on settings, they can't do anything right now
+      } else {
+        $body.find('.save-settings, .cancel-settings').prop('disabled',true);
+      }
     },
 
     /**
@@ -596,6 +691,7 @@ $(document).ready(function() {
     initialize: function(options) {
       //Set messages element
       this.$message = $(this.el).find('.loading-message');
+      this.$header = $(this.el).find('h1');
       //Set messages
       this.reloadMessages();
       //Kick off time out
@@ -642,9 +738,11 @@ $(document).ready(function() {
       
     },
 
-    show: function(message) {
-        this.$message.html(message);
-        $(this.el).show(); 
+    show: function(message,header) {
+      header = (typeof header === 'string') ? header : 'Loading Game...';
+      this.$header.html(header);
+      this.$message.html(message);
+      $(this.el).show(); 
     }
   });
 
@@ -734,7 +832,73 @@ $(document).ready(function() {
       this.context.fill();
     }
   });
+  /**
+   * Settings Panel
+   *
+   * Allows us to drag stuff onto the camvas, upload objects,
+   * search objects.
+   */
+  SettingsPanel = Backbone.View.extend( {
+     // Container element
+    el: $('.settings-content'),
 
+
+    //Grab the template from the page
+    template: _.template($('#settingsPanelTemplate').html()),
+
+    initialize: function(options) {
+      this.options = options || {};
+      _.bindAll(this,'render');
+      //Render the panel
+      this.render();
+    },
+    render: function() {
+      $(this.el).html(this.template({isGM: driftwood.engine.player.isGM()}));
+    },
+    updatePlayerList: function(playerList) {
+      var template = _.template($('#playerListTemplate').html());
+      $(this.el).find('.player-list').html(template({
+        players: playerList,
+        isOwner: driftwood.engine.player.isOwner(),
+        playerUsername: driftwood.engine.player.get('username')
+      }));
+    }
+  } );
+  /**
+   * Settings Panel
+   *
+   * Allows us to drag stuff onto the camvas, upload objects,
+   * search objects.
+   */
+  SystemMessage = Backbone.View.extend( {
+     // Container element
+    el: $('.system-message'),
+
+    hideDelay: 8000,
+
+    initialize: function(options) {
+      this.options = options || {};
+      _.bindAll(this,'render');
+      this.$alert = $(this.el).find('.alert');
+      this.$message = this.$alert.find('.message');
+    },
+
+    message: function(message,type,delayClose) {
+      //console.log('Show message:',message);
+      this.$alert.attr('class','alert');
+      if( type ) {
+        this.$alert.addClass('alert-'+type);
+      }
+      this.$message.html(message);
+      $(this.el).slideDown();
+      if( delayClose ) {
+        this.messageTimeout = window.setTimeout( _.bind( function() {
+          $(this.el).hide();
+        }, this ), this.hideDelay );
+      }
+    }
+    
+  } );
   /**
    * Object List
    *
@@ -756,6 +920,7 @@ $(document).ready(function() {
       this.addEventListeners();
       //Run test data
       if( this.options.load ) {
+        $(this.el).empty();
         this.addToList(this.options.load);
       }
     },
@@ -962,6 +1127,7 @@ $(document).ready(function() {
      * Most likely used for preloading chat information
      */
     loadData: function(chatData) {
+      $(this.el).find('.messages').empty();
       _.each( chatData, _.bind( function( data ) {
         data.active = false;
         this.receiveData(data);
@@ -1216,6 +1382,7 @@ $(document).ready(function() {
     defaults: {
       username: '',
       displayName: '',
+      isOwner: false,
       type: 'player'
     },
     initialize: function() {
@@ -1224,6 +1391,10 @@ $(document).ready(function() {
 
     isGM: function() {
       return this.get('type') === 'gm';
+    },
+
+    isOwner: function() {
+      return this.get('isOwner') === true;
     }
   });
   /**
@@ -1481,8 +1652,11 @@ $(document).ready(function() {
 
       //Local references to UI elements
       this.$canvasWrapper = $body.find('.canvas-wrapper');
+      this.$canvasPadding = $body.find('.canvas-padding');
       this.$canvasContainer = $body.find('.canvas-container');
       this.$editorOverlay = $body.find('.editor .overlay');
+
+      this.setEditorSize();
 
       //Zoom utility
       this.zoom = this.zoomUtil.init(this);
@@ -1563,10 +1737,7 @@ $(document).ready(function() {
         driftwood.engine.socket.emit('objectRemoved',{objects:json});
       }, this ) );
 
-      this.on('object:added object:removed object:modified', _.bind( function() {
-        //console.log('Saving canvas',JSON.stringify(this.canvas),this.canvas.getObjects());
-        //driftwood.engine.socket.emit('saveCanvas',JSON.stringify(this.canvas));
-      }, this ) );
+
 
       //Creates a context menu
       $body.on('contextmenu','.canvas-wrapper', _.bind(this.openContextMenu, this));
@@ -1585,18 +1756,35 @@ $(document).ready(function() {
       
     },
 
+    addSaveListener: function() {
+      this.on('object:added object:removed object:modified canvas:modified', _.bind( function(e) {
+        //We do not want to emit a save of the object being changed is the grid, we let the canvas:modified
+        //event handle that.
+        if( e && e.layer && e.layer === 'grid_layer' ) {
+          return false;
+        }
+        var canvasJSON = this.canvas.toJSON(),
+            _objects = canvasJSON.objects;
+        if( _objects.length ) {
+          //_objects.pop();
+          _objects = this.normalizeObjects(_objects);
+          canvasJSON.objects = _objects;
+          //console.log('Saving data',canvasJSON,e);
+        }
+        driftwood.engine.socket.emit('saveCanvas',JSON.stringify(canvasJSON));
+      }, this ) );
+    },
+
     loadCanvas: function(data) {
-      //console.log('Loading Data',data);
-      /*this.canvas.loadFromJSON(data);
+      //console.log('Loading Data',JSON.parse(data));
+      this.canvas.loadFromJSON(data);
       var _objects = this.canvas.getObjects();
       if( _objects.length ) {
-        console.log(_objects);
          _objects.forEach(_.bind( function(object) {
-          console.log(object);
           this.updateObjectForPlayer(object);
         }, this ) );
         this.canvas.renderAll();
-      }*/
+      }
        
     },
 
@@ -1631,15 +1819,28 @@ $(document).ready(function() {
         //Add index into json data
         json['index'] = object.index;
         //Normalize scale/position
-        if( this.canvasScale ) {
+        json = this.normalizeObjects([json]).pop();
+        jsonObjects.push(json);
+      }, this ) );
+      return jsonObjects;
+    },
+
+    normalizeObjects: function( objects ) {
+      var _objects = [];
+      _.each( objects, _.bind( function(json) {
+        if( this.canvasScale !== 1 ) {
           json.scaleX = json.scaleX / this.canvasScale;
           json.scaleY = json.scaleY / this.canvasScale;
           json.left = json.left / this.canvasScale;
           json.top = json.top / this.canvasScale;
         }
-        jsonObjects.push(json);
+        if( json.layer === 'grid_layer' ) {
+          json.gridSize = driftwood.engine.settings.gridSize;
+          json.gridUnit = driftwood.engine.settings.gridUnit;
+        }
+        _objects.push(json);
       }, this ) );
-      return jsonObjects;
+      return _objects;
     },
 
     /**
@@ -1735,7 +1936,9 @@ $(document).ready(function() {
         width: this.CANVAS_WIDTH,
         height: this.CANVAS_HEIGHT,
         originX: 'left',
-        originY: 'top'
+        originY: 'top',
+        stroke: gridColor,
+        strokeWidth: 1
       });
 
       //The canvas has been scaled, so we need to scale our lines down/up
@@ -1749,25 +1952,6 @@ $(document).ready(function() {
         this.switchLayer(layer);
       }
       this.canvas.renderAll();
-    },
-
-    orderByIndex: function(objects) {
-      if( ! objects || ! objects.length ) {
-        return objects;
-      }
-      var _objects = this.canvas.getObjects();
-      
-      return _.sortBy(objects, function(object) {
-        return _objects.indexOf(object);
-      });
-    },
-
-    toCanvasObjects: function(objects) {
-      var canvasObjects = [];
-      _.each( objects, function(object) {
-        canvasObjects.push(object.get('object'));
-      });
-      return canvasObjects;
     },
 
     /**
@@ -1789,6 +1973,38 @@ $(document).ready(function() {
         });
         this.canvas.renderAll();
       }
+    },
+
+    setBackgroundColor: function(color) {
+      this.canvas.backgroundColor = color;
+      this.canvas.renderAll();
+    },
+
+     orderByIndex: function(objects) {
+      if( ! objects || ! objects.length ) {
+        return objects;
+      }
+      var _objects = this.canvas.getObjects();
+      
+      return _.sortBy(objects, function(object) {
+        return _objects.indexOf(object);
+      });
+    },
+
+    toCanvasObjects: function(objects) {
+      var canvasObjects = [];
+      _.each( objects, function(object) {
+        canvasObjects.push(object.get('object'));
+      });
+      return canvasObjects;
+    },
+
+    setEditorSize: function() {
+      this.$canvasPadding.css({
+        width: this.$canvasContainer.outerWidth(),
+        height: this.$canvasContainer.outerHeight()
+      });
+      //this.$canvasContainer.css('position','fixed');
     },
 
     /**
@@ -2155,8 +2371,9 @@ $(document).ready(function() {
           });
         };
       })(activeObject.toObject);
+      
       if( newObject ) {
-        console.log('Added object');
+        //console.log('Added object');
         var currentLayer = this.currentLayer;
         //Set all our intial attributes
         activeObject.set({
@@ -2432,6 +2649,7 @@ $(document).ready(function() {
             this.canvasScale = canvasScale;
             canvas.renderAll();
             this.setOverlaySize();
+            this.setEditorSize();
           },
           Out: function() {
             // TODO limit max cavas zoom out
@@ -2460,6 +2678,7 @@ $(document).ready(function() {
                 objects[i].setCoords();
             }
             this.setOverlaySize();
+            this.setEditorSize();
             this.canvasScale = canvasScale;
             canvas.renderAll();
           }
@@ -2510,7 +2729,7 @@ $(document).ready(function() {
           //Set our intial circle. We're actually creating an Ellipse
           //with some intial qualities and then making it bigger
           startCircleDraw: function(event) {
-            console.log('starting circle draw');
+            //console.log('starting circle draw');
             //Where did the mouse click start
             this.offsetLeft = this.scope.offsetLeft();
             this.offsetTop = this.scope.offsetTop();
@@ -2853,7 +3072,7 @@ $(document).ready(function() {
           this.canvas.moveTo(existingObject,data.index);
         //This object isn't currently in the process of being enlivened
         } else if( ! this.enlivening[data.id] ) {
-          console.log('Need to enliven');
+          //console.log('Need to enliven');
           //console.log('Object does not exist');
           //We're going to enliven this data
           this.enlivening[data.id] = data;
@@ -2918,6 +3137,12 @@ $(document).ready(function() {
       //Example of preloaded upload objects
       //TODO: maybe these get loaded in via socket on connect?
       objects: [
+        {
+          url: '/images/driftwoodtutorial.png',
+          thumbnail: '/images/driftwoodtutorial.png',
+          type: 'token',
+          name: 'Tutorial'
+        },
         {
           url: '/images/tmp/goblin.png',
           thumbnail: '/images/tmp/goblin.png',
