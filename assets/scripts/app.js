@@ -9,20 +9,19 @@
  *    - Delete
  *  - Zoom
  *    - Need fit to screen zoom
- *    - When switching from zoom to another action, it zooms on click
- *    - When zooming it would be nice to try and maintain centering, instead of from top left
+ *    - Zooming in twice makes the canvas disappear? This appears to be a memory problem with a big canvas.
  *  - Color pickers 
  *    - Are missing transparent or "none" option
  *    - Need to close color picker on mouse up or have some button to accept color
- *   - Selection
- *     - Selecting two or more items seems to move them to the top of the stack. This only
- *       seems to happen for the user selecting, not on other players screens. Possibly
- *       something to do with it being a group vs a single item
- *     - Dragging off canvas will do browser selection on other items (just get the browser blue selection)
- *   - Right clicking on a non selected object brings up a menu for the selected object. It should
- *     shift selection to that object and open a menu for that
- *   - When a player leaves, they maintain "control" over an object so others can't move it. Need to remove
- *     control when a player leaves (or add a "does this player exist" check when updating for player)
+ *  - Selection
+ *    - Selecting two or more items seems to move them to the top of the stack. This only
+ *      seems to happen for the user selecting, not on other players screens. Possibly
+ *      something to do with it being a group vs a single item
+ *    - Dragging off canvas will do browser selection on other items (just get the browser blue selection)
+ *  - Right clicking on a non selected object brings up a menu for the selected object. It should
+ *    shift selection to that object and open a menu for that
+ *  - When a player leaves, they maintain "control" over an object so others can't move it. Need to remove
+ *    control when a player leaves (or add a "does this player exist" check when updating for player)
  *  
  */
 var DEV = false;
@@ -481,6 +480,13 @@ $(document).ready(function() {
         }
       }, this));
 
+      this.socket.on('sessionLibraryUpdate', _.bind( function(data) {
+        console.log('Object Library Updated');
+        this.objects.loadData(data);
+       // this.settings.objects = data;
+       // this.objects = new ObjectList({load:this.settings.objects});
+      }, this));
+
       this.socket.on('gameSettingsChanged', _.bind( function(data) {
         console.log('Game settings changed',data);
         this.updateSettingsWithoutDispatch(data);
@@ -615,43 +621,43 @@ $(document).ready(function() {
         this.handleHotKeys('delete',e);
         return false;
       }, this ) );
-      $body.bind('keydown.shift_c', _.bind( function(e) {
+      $body.bind('keydown.meta_c', _.bind( function(e) {
         return this.handleHotKeys('copy',e);
       }, this ) );
-      $body.bind('keydown.shift_v', _.bind( function(e) {
+      $body.bind('keydown.meta_v', _.bind( function(e) {
         return this.handleHotKeys('paste',e);
       }, this ) );
-      $body.bind('keydown.shift_x', _.bind( function(e) {
+      $body.bind('keydown.meta_x', _.bind( function(e) {
         return this.handleHotKeys('cut',e);
       }, this ) );
       //Lock objects
-      $body.bind('keydown.shift_l', _.bind( function(e) {
-        return this.handleHotKeys('lockObject',e);
+      $body.bind('keydown.meta_l', _.bind( function(e) {
+        return this.handleHotKeys('lock',e);
       }, this ) );
       //Unlock objects
-      $body.bind('keydown.shift_u', _.bind( function(e) {
-        return this.handleHotKeys('unlockObject',e);
+      $body.bind('keydown.meta_u', _.bind( function(e) {
+        return this.handleHotKeys('unlock',e);
       }, this ) );
       //
-      $body.bind('keydown.shift_up', _.bind( function(e) {
+      $body.bind('keydown.meta_up', _.bind( function(e) {
         return this.handleHotKeys('moveObject',e,'toFront');
       }, this ) );
-      $body.bind('keydown.shift_down', _.bind( function(e) {
+      $body.bind('keydown.meta_down', _.bind( function(e) {
         return this.handleHotKeys('moveObject',e,'toBack');
       }, this ) );
-      $body.bind('keydown.shift_left', _.bind( function(e) {
+      $body.bind('keydown.meta_left', _.bind( function(e) {
         return this.handleHotKeys('moveObject',e,'backwards');
       }, this ) );
-      $body.bind('keydown.shift_right', _.bind( function(e) {
+      $body.bind('keydown.meta_right', _.bind( function(e) {
         return this.handleHotKeys('moveObject',e,'forwards');
       }, this ) );
-      $body.bind('keydown.shift_1', _.bind( function(e) {
+      $body.bind('keydown.meta_1', _.bind( function(e) {
         return this.handleHotKeys('switchObjectLayer',e,'map_layer');
       }, this ) );
-      $body.bind('keydown.shift_2', _.bind( function(e) {
+      $body.bind('keydown.meta_2', _.bind( function(e) {
         return this.handleHotKeys('switchObjectLayer',e,'object_layer');
       }, this ) );
-      $body.bind('keydown.shift_3', _.bind( function(e) {
+      $body.bind('keydown.meta_3', _.bind( function(e) {
         return this.handleHotKeys('switchObjectLayer',e,'gm_layer');
       }, this ) );
       $body.bind('keydown.1', _.bind( function(e) {
@@ -663,7 +669,7 @@ $(document).ready(function() {
       $body.bind('keydown.3', _.bind( function(e) {
         return this.handleHotKeys('switchLayer',e,'gm_layer');
       }, this ) );
-      $body.bind('keydown.s', _.bind( function(e) {
+      $body.bind('keydown.m', _.bind( function(e) {
         return this.handleHotKeys('selectCanvas',e);
       }, this ) );
       $body.bind('keydown.f', _.bind( function(e) {
@@ -1084,9 +1090,13 @@ $(document).ready(function() {
       this.addEventListeners();
       //Run test data
       if( this.options.load ) {
-        $(this.el).empty();
-        this.addToList(this.options.load);
+        this.loadData(this.options.load);
       }
+    },
+
+    loadData: function(data) {
+      $(this.el).empty();
+      this.addToList(data);
     },
 
     addEventListeners: function() {
@@ -1114,10 +1124,10 @@ $(document).ready(function() {
           contentType: false,
           type: 'POST',
           success: function(data) {
-            //socket.emit('newUpload', data)
+            console.log(data);
             scope.processServerData(data);
           },
-         error: function( jqXHR, textStatus, errorThrown ) {
+          error: function( jqXHR, textStatus, errorThrown ) {
             console.log(jqXHR);
          }
         });
@@ -1150,6 +1160,7 @@ $(document).ready(function() {
       }
 
       _.each( objects, _.bind( function(object) {
+        object.canDelete = false;//object.isOwner ? true : false;
         $(this.el).append(this.template(object));
       }, this ) );
 
@@ -1443,6 +1454,7 @@ $(document).ready(function() {
           $this.closest('.command').addClass('open');
         }, scope.subMenuDelay );
         e.preventDefault();
+        e.stopPropagation();
       } );
 
       //Clears the longpress timer
@@ -1456,6 +1468,7 @@ $(document).ready(function() {
           return false;
         }
         scope.commandClicked(this);
+        //e.stopPropagation();
       } );
       $body.on('click',function() {
         $body.find('.command.open').removeClass('open');
@@ -1919,10 +1932,6 @@ $(document).ready(function() {
           this.contextMenu = false;
         }
       }, this ) );
-
-      $body.on('change', '.editor-color', _.bind( function(e) {
-        console.log(e);
-      }, this ) );
       
     },
 
@@ -1960,7 +1969,7 @@ $(document).ready(function() {
       //console.log('Loading Data',JSON.parse(data));
       this.canvas.loadFromJSON(data, _.bind( function() {
         var _objects = this.canvas.getObjects();
-        console.log(_objects);
+        //console.log(_objects);
         if( _objects.length ) {
            _objects.forEach(_.bind( function(object) {
             this.updateObjectForPlayer(object);
@@ -2191,6 +2200,7 @@ $(document).ready(function() {
     },
 
     setEditorSize: function() {
+      //console.log('Setting editor size');
       this.$canvasPadding.css({
         width: this.$canvasContainer.outerWidth(),
         height: this.$canvasContainer.outerHeight()
@@ -2760,6 +2770,7 @@ $(document).ready(function() {
     },
     //Sets overlay size to size of the canvasWrapper
     setOverlaySize: function() {
+      //console.log('Setting overlay size');
       this.$editorOverlay.hide();
       //If there is no scroll, set it to size 100%
       var width = this.$canvasWrapper.outerWidth() >= this.$canvasWrapper[0].scrollWidth ? '100%' : this.$canvasWrapper[0].scrollWidth,
@@ -2848,8 +2859,9 @@ $(document).ready(function() {
             canvas.renderAll();
             this.setOverlaySize();
             this.setEditorSize();
+            this.center();
           },
-          Out: function() {
+          Out: function(e) {
             // TODO limit max cavas zoom out
             canvasScale = canvasScale / SCALE_FACTOR;
             //Set canvas size
@@ -2875,10 +2887,11 @@ $(document).ready(function() {
 
                 objects[i].setCoords();
             }
-            this.setOverlaySize();
-            this.setEditorSize();
             this.canvasScale = canvasScale;
             canvas.renderAll();
+            this.setEditorSize();
+            this.setOverlaySize();
+            this.center();
           }
         };
       },
