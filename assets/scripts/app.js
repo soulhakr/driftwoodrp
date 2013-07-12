@@ -856,7 +856,7 @@ $(document).ready(function() {
      * screen actually hides.
      * @type {Number}
      */
-    hideDelay: 4000,
+    hideDelay: 3000,
 
     initialize: function(options) {
       //Set messages element
