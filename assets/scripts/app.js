@@ -856,7 +856,7 @@ $(document).ready(function() {
      * screen actually hides.
      * @type {Number}
      */
-    hideDelay: 0,
+    hideDelay: 4000,
 
     initialize: function(options) {
       //Set messages element
@@ -3348,48 +3348,6 @@ $(document).ready(function() {
       //Example of preloaded upload objects
       //TODO: maybe these get loaded in via socket on connect?
       objects: [
-        {
-          url: '/images/driftwoodtutorial.png',
-          thumbnail: '/images/driftwoodtutorial.png',
-          type: 'token',
-          name: 'Tutorial'
-        },
-        {
-          url: '/images/tmp/goblin.png',
-          thumbnail: '/images/tmp/goblin.png',
-          type: 'token',
-          name: 'Goblin'
-        },
-        {
-          url: '/images/tmp/paladin.png',
-          thumbnail: '/images/tmp/paladin.png',
-          type: 'token',
-          name: 'Paladin'
-        },
-        {
-          url: '/images/tmp/fighter.png',
-          thumbnail: '/images/tmp/fighter.png',
-          type: 'token',
-          name: 'Warrior'
-        },
-        {
-          url: '/images/tmp/map.jpg',
-          thumbnail: '/images/tmp/map.jpg',
-          type: 'map',
-          name: 'Map of Taul'
-        },
-        {
-          url: '/images/tmp/mage.png',
-          thumbnail: '/images/tmp/mage.png',
-          type: 'token',
-          name: 'Mage'
-        },
-        {
-          url: '/images/tmp/treasureChest.png',
-          thumbnail: '/images/tmp/treasureChest.png',
-          type: 'item',
-          name: 'Treasure Chest'
-        },
       ],
     })
   }
